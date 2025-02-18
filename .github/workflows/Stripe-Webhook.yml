@@ -29,6 +29,20 @@ jobs:
           EC2_HOST: ${{ secrets.EC2_HOST }}
         run: |
           ssh $SSH_USERNAME@$EC2_HOST 'bash -s' << 'ENDSSH'
+            # Update package list
+            sudo apt-get update
+
+            # Install Node.js and npm
+            curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+            sudo apt-get install -y nodejs
+
+            # Verify installations
+            node --version
+            npm --version
+
+            # Install PM2 globally
+            sudo npm install -g pm2
+
             # Navigate to project directory (create if doesn't exist)
             mkdir -p ~/stripe-backend
             cd ~/stripe-backend
@@ -42,9 +56,6 @@ jobs:
             # Set up environment variables
             echo "STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }}" > .env
             echo "STRIPE_WEBHOOK_SECRET=${{ secrets.STRIPE_WEBHOOK_SECRET }}" >> .env
-
-            # Install PM2 if not installed
-            npm install pm2@latest -g
 
             # Restart PM2 process (create if doesn't exist)
             pm2 restart stripe-backend || pm2 start server.js --name stripe-backend
