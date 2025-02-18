@@ -1,0 +1,51 @@
+name: Deploy to EC2
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Install SSH key
+        uses: shimataro/ssh-key-action@v2
+        with:
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          known_hosts: unnecessary
+          if_key_exists: replace
+
+      - name: Adding Known Hosts
+        run: ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Deploy to EC2
+        env:
+          SSH_USERNAME: ${{ secrets.SSH_USERNAME }}
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+        run: |
+          ssh $SSH_USERNAME@$EC2_HOST 'bash -s' << 'ENDSSH'
+            # Navigate to project directory (create if doesn't exist)
+            mkdir -p ~/stripe-backend
+            cd ~/stripe-backend
+
+            # Pull latest changes
+            git pull origin main || git clone https://github.com/umer-waltz/stripe-backend.git .
+
+            # Install dependencies
+            npm install
+
+            # Set up environment variables
+            echo "STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }}" > .env
+            echo "STRIPE_WEBHOOK_SECRET=${{ secrets.STRIPE_WEBHOOK_SECRET }}" >> .env
+
+            # Install PM2 if not installed
+            npm install pm2@latest -g
+
+            # Restart PM2 process (create if doesn't exist)
+            pm2 restart stripe-backend || pm2 start server.js --name stripe-backend
+          ENDSSH
